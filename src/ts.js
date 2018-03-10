@@ -124,12 +124,12 @@ class TS {
     auto && this.render()
   }
 
-  watch(item, cb, deep) {
+  watch(item, cb, deep = false) {
     this.scope.$watch(item, cb.bind(this), deep)
   }
 
   watchGroup(item, cb) {
-    this.scope.$watchGroup(item, cb.bind(this), true)
+    this.scope.$watchGroup(item, cb.bind(this))
   }
 
   on(type, cb) {
