@@ -3,9 +3,15 @@ export default {
     gongyong: 0
   },
 
+  mutations: {
+    mutationGongyong(state, gongyong) {
+      state.gongyong = gongyong
+    }
+  },
+
   actions: {
-    mutationGongyong(gongyong) {
-      this.state.gongyong = gongyong || (this.state.gongyong + 1)
+    updateGongyong({ state, commit }, gongyong) {
+      commit('mutationGongyong', gongyong || (state.gongyong + 1))
     }
   }
 }

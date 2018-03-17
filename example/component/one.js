@@ -15,8 +15,6 @@ export default app => {
       `,
       link(scope, element, attrs) {
         const component = new TS(scope, {
-          auto: true,
-
           data: {
             bindGongyong: 0 
           },
@@ -32,7 +30,7 @@ export default app => {
 
           watchs: {
             gongyong(...args) {
-              this.scope.bindGongyong = '绑定并乘以2倍 = ' + (args[0] * 2)
+              this.bindGongyong = '绑定并乘以2倍 = ' + (args[0] * 2)
             }
           },
 

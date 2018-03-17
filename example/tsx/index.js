@@ -1,8 +1,8 @@
 import { TSX } from 'angularjs-x'
 import main from './modules/main'
 
-TSX.addModules({
+TSX.registerModules({
   main
-})
+}, true)
 
 export default TSX

@@ -2,35 +2,56 @@ const symbol = {
   modules: Symbol('tsx-modules'),
   cache: Symbol('tsx-cache'),
   listener: Symbol('tsx-get-listener'),
-  $$listeners: Symbol('tsx-$$listeners')
+  $$listeners: Symbol('tsx-$$listeners'),
+  context: Symbol('tsx-context')
 }
 
 const clone = (value) => {
   return typeof value == 'object' ? JSON.parse(JSON.stringify(value)) : value
 }
 
+const parseName = (name) => {
+  const [module, item] = name.split('.')
+  return {
+    module,
+    item
+  } 
+}
+
 const TSX = {
   [symbol.modules]: {},
   [symbol.cache]: new Map(),
 
-  addModules(modules = {}) {
+  registerModules(modules = {}, extra = false) {
     Object.keys(modules).forEach(module => {
-      this.addModule(module, modules[module])
+      this.registerModule(module, modules[module])
     })
+
+    extra && this.openExtra()
   },
 
-  addModule(module, option) {
-    const moduleOption = this[symbol.modules][module] = Object.assign({
-      [symbol.$$listeners]: new Map()
-    }, option)
+  registerModule(module, option) {
+    const moduleOption = this[symbol.modules][module] = {
+      [symbol.$$listeners]: new Map(), 
+      ...option
+    }
     const { state, actions } = moduleOption
     const $$listeners = moduleOption[symbol.$$listeners]
     state && Object.keys(state).forEach(item => {
       $$listeners.set(item, new Map())
       this.reactive(module, item, state[item])
     })
+    moduleOption[symbol.context] = {
+      state: state,
+      commit: function(mutation, state) {
+        this.mutations[mutation](this.state, state)
+      }.bind(moduleOption),
+      dispatch: function(action, state) {
+        this.actions[action](state)
+      }.bind(moduleOption)
+    }
     actions && Object.keys(actions).forEach(action => {
-      actions[action] = actions[action].bind(moduleOption)
+      actions[action] = actions[action].bind(moduleOption, moduleOption[symbol.context])
     })
   },
 
@@ -55,14 +76,6 @@ const TSX = {
     return this[symbol.modules][module][symbol.$$listeners].get(item)
   },
 
-  _parseName(name) {
-    const [module, item] = name.split('.')
-    return {
-      module,
-      item
-    } 
-  },
-
   notify(module, item, value) {
     const listeners = this[symbol.listener](module, item)
     if (listeners) {
@@ -73,34 +86,78 @@ const TSX = {
   },
 
   subscribe(module, item, callback) {
-    this[symbol.listener](module, item).set(callback, callback)
-  },
-
-  unsubscribe(name, callback) {
-    if (!name || !callback) {
-      return
+    const listeners = this[symbol.listener](module, item)
+    listeners.set(callback, callback)
+    return () => {
+      return listeners.delete(callback)
     }
-    const { module, item } = this._parseName(name)
-    this[symbol.listener](module, item).delete(callback)
   },
 
   mapState(name = '', callback) {
     if (!name || !callback) {
       return
     }
-    const { module, item } = this._parseName(name)
+    const { module, item } = parseName(name)
     callback(clone(this[symbol.modules][module]['state'][item]))
-    this.subscribe(module, item, callback)
+    return this.subscribe(module, item, callback)
   },
 
   mapAction(name = '') {
     if (!name) {
       return
     }
-    const { module, item } = this._parseName(name)
-    return this[symbol.modules][module]['actions'][item]
+    const { module, item } = parseName(name)
+    return (...args) => {
+      return this[symbol.modules][module]['actions'][item](...args)
+    }
   }
 }
 
-export default TSX
+TSX.openExtra = function() {
+  const check = (scope) => {
+    if (!scope || typeof scope.$on != 'function') {
+      throw new Error(`mapStateByAutoDestroy的scope参数不是期望的`)
+    }
+  }
 
+  this.mapStateAuto = function(scope, maps) {
+    check(scope)
+
+    const unMapStates = Object.keys(maps).map(each => {
+      let map = maps[each]
+      if (typeof map == 'string') {
+        map = {
+          name: map,
+          compute(val) {
+            return val
+          }
+        }
+      }
+      const { name, compute } = map
+      return this.mapState(name, (val) => {
+        scope[each] = compute(val)
+        scope.$applyAsync()
+      })
+    })
+    scope.$on('$destroy', () => {
+      unMapStates.forEach(each => each())
+    })
+  }
+
+  this.mapActionAuto = function(scope, maps) {
+    check(scope)
+
+    const upMapActions = Object.keys(maps).map(each => {
+      const name = maps[each]
+      scope[each] = this.mapAction(name)
+      return () => {
+        scope[each] = () => {}
+      }
+    })
+    scope.$on('$destroy', () => {
+      upMapActions.forEach(each => each())
+    })
+  }
+}.bind(TSX)
+
+export default TSX

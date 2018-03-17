@@ -30,12 +30,12 @@ export default app => {
           },
 
           methods: {
-            mutation: 'main.mutationGongyong'
+            update: 'main.updateGongyong'
           },
 
           scopeMethods: {
             click(number) {
-              this.mutation(number)
+              this.update(number)
             }
           },
 

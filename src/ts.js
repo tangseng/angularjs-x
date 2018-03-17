@@ -4,74 +4,118 @@ const symbol = {
   inited: Symbol('$$inited')
 }
 
+const KEY_WORDS = [
+  '$$data',
+  '$$computed',
+  '$$watchs',
+  '$$methods',
+  '$$scopeMethods',
+  '$$init',
+  '$$watch',
+  '$$watchGroup',
+  '$$on',
+  '$$broadcast',
+  '$$emit',
+  '$$apply',
+  '$$applyAsync',
+  '$$render'
+]
+
+const checkIsKeyWord = (word) => {
+  const check = KEY_WORDS.indexOf(word) != -1
+  if (check) {
+    throw new Error('错误：实例化TS时使用了关键字"' + word + '". 请勿使用这些关键字：' + KEY_WORDS.toString())
+  }
+}
+
 class TS {
   constructor(scope, options) {
-    this.scope = scope
-    this.options = Object.assign({
-      auto: false
-    }, options)
+    this.$$scope = scope
+    this.$$options = {
+      auto: false, 
+      ...options
+    }
     this[symbol.inited] = false
-    this.init()
+    this.$$init()
   }
 
-  data(data = {}) {
+  $$data(data = {}) {
     Object.keys(data).forEach(item => {
-      Object.defineProperty(this.scope, item, {
+      checkIsKeyWord(item)
+
+      Object.defineProperty(this.$$scope, item, {
         configurable: true,
         enumerable: true,
         writable: true,
         value: data[item],
       })
+
+      Object.defineProperty(this, item, {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          return this.$$scope[item]
+        },
+        set: (value) => {
+          this.$$scope[item] = value
+        }
+      })
     })
   }
 
-  computed(computed = {}) {
-    if (Array.isArray(computed)) {
-      computed = computed.reduce((result, item) => {
-        const keyName = item.replace(/\.([a-zA-Z])/, (...args) => {
-          return args[1] ? (args[1] + '').toUpperCase() : ''
-        })
-        result[keyName] = {
-          name: item,
+  $$computed(computed = {}) {
+    Object.keys(computed).forEach(item => {
+      checkIsKeyWord(item)
+
+      let itemComputed = computed[item]
+      if (typeof itemComputed == 'string') {
+        itemComputed = {
+          name: itemComputed,
           compute(val) {
             return val
           }
         }
-        return result
-      }, {})
-    }
-    Object.keys(computed).forEach(item => {
-      const { name, compute } = computed[item]
-      Object.defineProperty(this.scope, item, {
+      }
+      const { name, compute } = itemComputed
+      Object.defineProperty(this.$$scope, item, {
         configurable: true,
         enumerable: true,
         writable: true
       })
-      const callback = (value) => {
-        Object.defineProperty(this.scope, item, {
-          value: compute.apply(this, [value])
-        })
-        this.scope.$applyAsync()
-      }
-      TSX.mapState(name, callback)
-      this.scope.$on('$destroy', () => {
-        TSX.unsubscribe(name, callback)
+      Object.defineProperty(this, item, {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          return this.$$scope[item]
+        },
+        set: (value) => {
+          this.$$scope[item] = value
+        }
+      })
+      const unMapState = TSX.mapState(name, (value) => {
+        this[item] = compute.apply(this, [value])
+        this.$$applyAsync()
+      })
+      this.$$on('$destroy', () => {
+        unMapState && unMapState()
       })
     })
   }
 
-  watchs(watchs = {}) {
+  $$watchs(watchs = {}) {
     Object.keys(watchs).forEach(item => {
       if (item.indexOf(',') != -1) {
-        this.watchGroup(item.split(','), watchs[item])
+        this.$$watchGroup(item.split(','), watchs[item])
       } else {
-        this.watch(item, watchs[item])
+        this.$$watch(item, watchs[item])
       }     
     })
   }
 
-  methods(methods = {}) {
+  $$methods(methods = {}) {
     Object.keys(methods).forEach(item => {
+      checkIsKeyWord(item)
+
       let method = methods[item]
       if (typeof method == 'string') {
         const name = method
@@ -87,66 +131,91 @@ class TS {
     })
   }
 
-  scopeMethods(methods = {}) {
+  $$scopeMethods(methods = {}) {
     Object.keys(methods).forEach(item => {
-      Object.defineProperty(this.scope, item, {
+      Object.defineProperty(this.$$scope, item, {
         value: methods[item].bind(this)
       })
     })
   }
 
-  init() {
+  $$init() {
     if (this[symbol.inited]) {
       return
     }
     this[symbol.inited] = true
 
-    const { auto, data, computed, computedMore, watchs, methods, scopeMethods, created, destroy } = this.options
-    data && this.data(data)
-    computed && this.computed(computed)
-    computedMore && this.computed(computedMore)
-    watchs && this.watchs(watchs)
-    methods && this.methods(methods)
-    scopeMethods && this.scopeMethods(scopeMethods)
+    let { mixins, data, computed, watchs, methods, scopeMethods, created, destroy } = this.$$options
+    if (mixins && Array.isArray(mixins)) {
+      let mixinData = {}, mixinComputed = {}, mixinWatchs = {}, mixinMethods = {}, mixinScopeMethods = {}
+      mixins = mixins.concat(this.$$options)
+      mixins.forEach(item => {
+        mixinData = {...mixinData, ...item.data}
+        mixinComputed = {...mixinComputed, ...item.computed}
+        mixinWatchs = {...mixinWatchs, ...item.watchs}
+        mixinMethods = {...mixinMethods, ...item.methods}
+        mixinScopeMethods = {...mixinScopeMethods, ...item.scopeMethods}
+      })
+
+      this.$$options.mixins = mixins = null
+
+      data = mixinData
+      computed = mixinComputed
+      watchs = mixinWatchs
+      methods = mixinMethods
+      scopeMethods = mixinScopeMethods
+    }
+    data && this.$$data(data)
+    computed && this.$$computed(computed)
+    watchs && this.$$watchs(watchs)
+    methods && this.$$methods(methods)
+    scopeMethods && this.$$scopeMethods(scopeMethods)
     
     if (created && typeof created == 'function') {
       created.apply(this)
     }
 
-    if (destroy && typeof destroy == 'function') {
-      this.scope.$on('$destroy', destroy.bind(this))
-    }
-
-    this.scope.$on('$destroy', () => {
-      this.scope = null
+    this.$$on('$destroy', () => {
+      this.$$scope = null
+      if (destroy && typeof destroy == 'function') {
+        destroy.apply(this)
+      }
     })
 
-    auto && this.render()
+    this.$$render()
   }
 
-  watch(item, cb, deep = false) {
-    this.scope.$watch(item, cb.bind(this), deep)
+  $$watch(item, cb, deep = false) {
+    this.$$scope.$watch(item, cb.bind(this), deep)
   }
 
-  watchGroup(item, cb) {
-    this.scope.$watchGroup(item, cb.bind(this))
+  $$watchGroup(item, cb) {
+    this.$$scope.$watchGroup(item, cb.bind(this))
   }
 
-  on(type, cb) {
-    this.scope.$on(type, cb.bind(this))
+  $$on(type, cb) {
+    this.$$scope.$on(type, cb.bind(this))
   }
 
-  broadcast(type, info) {
-    this.scope.$broadcast(type, info)
+  $$broadcast(type, info) {
+    this.$$scope.$broadcast(type, info)
   }
 
-  emit(type, info) {
-    this.scope.$emit(type, info)
+  $$emit(type, info) {
+    this.$$scope.$emit(type, info)
   }
 
-  render() {
-    if (this.options.render) {
-      this.options.render.apply(this)
+  $$apply() {
+    this.$$scope.$apply()
+  }
+
+  $$applyAsync() {
+    this.$$scope.$applyAsync()
+  }
+
+  $$render() {
+    if (this.$$options.render) {
+      this.$$options.render.apply(this)
     }
   }
 }
