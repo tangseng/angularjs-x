@@ -1,8 +1,10 @@
 {
-  "name": "angularjs-x",
+  "name": "@tangseng/angularjs-x",
   "version": "0.1.0",
   "description": "angularjs组件之间的数据管理和响应式绑定",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "module": "index.js",
+  "sideEffects": false,
   "scripts": {
     "test": "jasmine JASMINE_CONFIG_PATH=unit/jasmine.json",
     "dev": "webpack-dev-server --config ./example/webpack.server.js",
@@ -17,11 +19,10 @@
     "数据管理",
     "响应式"
   ],
-  "author": "tangseng",
+  "author": "tangseng <348312378@qq.com>",
   "license": "MIT",
   "devDependencies": {
     "angular": "^1.7.3",
-    "babel-core": "^6.26.3",
     "babel-loader": "^7.1.5",
     "babel-plugin-external-helpers": "^6.22.0",
     "babel-preset-env": "^1.7.0",
@@ -30,6 +31,7 @@
     "jasmine": "^3.2.0",
     "rollup": "^0.56.3",
     "rollup-plugin-babel": "^3.0.7",
+    "rollup-plugin-node-resolve": "^3.3.0",
     "webpack": "^4.17.1",
     "webpack-cli": "^2.1.5",
     "webpack-dev-server": "^3.1.5"

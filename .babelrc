@@ -1,10 +1,14 @@
 {
   "presets": [
     ["env", {
-      "modules": false
+      "modules": false,
+      "targets": {
+        "browsers": ["last 2 versions"]
+      }
     }]
   ],
   "plugins": [
-    "external-helpers"  
+    "external-helpers",
+    "transform-object-rest-spread"  
   ]
 }

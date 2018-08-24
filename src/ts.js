@@ -29,7 +29,7 @@ const checkIsKeyWord = (word) => {
 }
 
 class TS {
-  constructor(scope, options) {
+  constructor(scope, options = {}) {
     this.$$scope = scope
     this.$$options = {
       auto: false, 

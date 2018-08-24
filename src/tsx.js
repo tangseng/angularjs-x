@@ -30,7 +30,7 @@ const TSX = {
     extra && this.openExtra()
   },
 
-  registerModule(module, option) {
+  registerModule(module, option = {}) {
     const moduleOption = this[symbol.modules][module] = {
       [symbol.$$listeners]: new Map(), 
       ...option
